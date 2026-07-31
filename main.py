@@ -39,7 +39,7 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
-state = torch.tensor((96, 96, 4), dtype=torch.float32, device=device).new_zeros((96,96,4)).unsqueeze(0)
+state = torch.zeros((1,4,96,96), dtype=torch.float32, device=device)
 
 class Q_Value_Function(nn.Module): 
     def __init__(self, number_actions):
@@ -63,12 +63,13 @@ def preprocess(obs, prev_state):
     #use ITU-R 601-2 luma formula to convert to grayscale
     obs = np.dot(obs[..., :3], [0.299, 0.587, 0.114])
 
-    #keep runnning list of past 4 frames to check for movement
-    obs = obs[..., np.newaxis]
 
-    state = np.append(prev_state, obs, axis=2)
-    if np.size(state, axis=2) > 4:
-        state = state[..., 1:]
+    # obs = obs[..., np.newaxis]
+    obs = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+
+    state = torch.cat([prev_state, obs], dim=1)
+    if state.size(1) > 4:
+        state = state[:, 1:, ...]
 
     return state
 
@@ -146,9 +147,12 @@ def optimize_model():
 
 for steps in range(num_episodes):
     # Initialize the environment and get its state
+    state = torch.zeros((1,4,96,96), dtype=torch.float32, device=device)
     obs, info = env.reset()
     state = preprocess(obs, state)
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
+    with torch.no_grad():
+        policy_model.forward(state)
+        target_model.forward(state)
     for t in count():
         steps += 1
         action = select_action(state, steps)
@@ -160,7 +164,6 @@ for steps in range(num_episodes):
             next_state = None
         else:
             next_state = preprocess(observation, state)
-            next_state = torch.tensor(next_state, dtype=torch.float32, device=device).unsqueeze(0)
 
         # Store the transition in memory
         memory.push(state, action, next_state, reward)
