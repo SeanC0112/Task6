@@ -12,7 +12,6 @@ device = torch.accelerator.current_accelerator().type if torch.accelerator.is_av
 torch.set_default_device(device=device)
 print(f"Using {device} device")
 
-
 BATCH_SIZE = 32
 GAMMA = 0.99
 EPS_START = 1
@@ -49,6 +48,7 @@ class Q_Value_Function(nn.Module):
             nn.ReLU(),
             nn.LazyConv2d(32, kernel_size=4, stride=2), # same size as paper because this [produces a nice 10x10x32 output
             nn.ReLU(),
+            nn.Flatten(),
             nn.LazyLinear(256),
             nn.ReLU(),
             nn.LazyLinear(number_actions)
