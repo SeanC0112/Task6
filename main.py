@@ -7,6 +7,7 @@ from collections import namedtuple, deque
 import math, random
 import matplotlib.pyplot as plt
 from itertools import count
+import os
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 torch.set_default_device(device=device)
@@ -85,9 +86,16 @@ target_model.load_state_dict(policy_model.state_dict())
 memory = ReplayMemory(10000)
 optimizer = torch.optim.RMSprop(policy_model.parameters(), lr=LR, alpha=0.95)
 
-num_episodes = 500000
+num_episodes = 500
+train_loss = []
+running_loss = deque(maxlen=50)
+for _ in range (50):
+    running_loss.append(0)
+ep_reward = []
+
 
 steps = 0
+episodes = 0
 
 def select_action(state, steps):
     sample = random.random()
@@ -144,8 +152,10 @@ def optimize_model():
     # In-place gradient clipping
     torch.nn.utils.clip_grad_value_(policy_model.parameters(), 100)
     optimizer.step()
+    running_loss.append(loss.item())
+    train_loss.append(sum(running_loss)/len(running_loss))
 
-for steps in range(num_episodes):
+for episodes in range(num_episodes):
     # Initialize the environment and get its state
     state = torch.zeros((1,4,96,96), dtype=torch.float32, device=device)
     obs, info = env.reset()
@@ -153,10 +163,13 @@ for steps in range(num_episodes):
     with torch.no_grad():
         policy_model.forward(state)
         target_model.forward(state)
+
+    total_reward = 0
     for t in count():
         steps += 1
         action = select_action(state, steps)
         observation, reward, terminated, truncated, _ = env.step(action.item())
+        total_reward += reward
         reward = torch.tensor([reward], device=device)
         done = terminated or truncated
 
@@ -184,4 +197,21 @@ for steps in range(num_episodes):
 
         if done:
             break
+        
+    for filename in os.listdir('.plots'):
+        os.remove(os.path.join('.plots', filename))
 
+    ep_reward.append(total_reward)
+    plt.plot(range(len(ep_reward)), ep_reward)
+    plt.title("Episode Rewards")
+    plt.xlabel("Time")
+    plt.ylabel("Rewards")
+    plt.savefig('.plots/reward_plot.png')
+    plt.close()  
+
+    plt.plot(range(len(train_loss)), train_loss)
+    plt.title("Training Loss")
+    plt.xlabel("Time")
+    plt.ylabel("Loss") 
+    plt.savefig('.plots/train_loss.png')
+    plt.close() 
