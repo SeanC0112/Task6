@@ -5,34 +5,47 @@ import torch
 from torch import nn
 
 replay_memory = pd.DataFrame(columns=["state", "action", "reward", "next_state", "done"])
-state = np.ndarray(shape = (4, 96, 96))
+state = np.ndarray(shape = (96, 96, 4))
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 torch.set_default_device(device=device)
 print(f"Using {device} device")
 
-# class Q_Value_Function(nn.Module): #use more low-level solution instead of this
-#     def __init__(self):
-#         super.__init__()
-#         self.flatten = nn.Flatten()
+class Q_Value_Function(nn.Module): 
+    def __init__(self):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Conv2d(4, 16, kernel_size=12, stride=4), # different from the paper convolutional size because 8x8 stride 4 would give a 23x23 output, which would be awkward
+            nn.ReLU(),
+            nn.LazyConv2d(32, kernel_size=4, stride=2), # same size as paper because this [produces a nice 10x10x32 output
+            nn.ReLU(),
+            nn.LazyLinear(256),
+            nn.ReLU(),
+            nn.LazyLinear(5)
+        )
+
+        def forward(self, x):
+            return self.model(x)
+
+
 
 def preprocess(obs, prev_state):
     #use ITU-R 601-2 luma formula to convert to grayscale
     obs = np.dot(obs[..., :3], [0.299, 0.587, 0.114])
 
     #keep runnning list of past 4 frames to check for movement
-    obs = obs[np.newaxis, ...]
+    obs = obs[..., np.newaxis]
 
-    state = np.append(prev_state, obs, axis=0)
-    if np.size(state, axis=0) > 4:
-        state = state[1:, ...]
+    state = np.append(prev_state, obs, axis=2)
+    if np.size(state, axis=2) > 4:
+        state = state[..., 1:]
 
     return state
 
 
         
 
-env = gym.make("CarRacing-v3", render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=True, max_episode_steps=1000,)
+env = gym.make("CarRacing-v3", render_mode="human", lap_complete_percent=0.95, domain_randomize=False, continuous=False, max_episode_steps=1000)
 
 for i in range(5):
     obs, _ = env.reset()
