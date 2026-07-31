@@ -8,6 +8,11 @@ import math, random
 import matplotlib.pyplot as plt
 from itertools import count
 
+device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+torch.set_default_device(device=device)
+print(f"Using {device} device")
+
+
 BATCH_SIZE = 32
 GAMMA = 0.99
 EPS_START = 1
@@ -34,11 +39,7 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
-state = np.zeros((96,96,4))
-
-device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-torch.set_default_device(device=device)
-print(f"Using {device} device")
+state = torch.tensor((96, 96, 4), dtype=torch.float32, device=device).new_zeros((96,96,4)).unsqueeze(0)
 
 class Q_Value_Function(nn.Module): 
     def __init__(self, number_actions):
