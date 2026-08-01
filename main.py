@@ -17,7 +17,7 @@ BATCH_SIZE = 32
 GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.1
-EPS_DECAY = 100000
+EPS_DECAY = 150000
 TAU = 0.005
 LR = 3e-4
 
@@ -88,9 +88,12 @@ optimizer = torch.optim.RMSprop(policy_model.parameters(), lr=LR, alpha=0.95)
 
 num_episodes = 500
 train_loss = []
-running_loss = deque(maxlen=50)
-for _ in range (50):
+running_loss = deque(maxlen=250)
+for _ in range (250):
     running_loss.append(0)
+running_reward = deque(maxlen=15)
+# for _ in range (15):
+#     running_reward.append(0)
 ep_reward = []
 
 
@@ -197,11 +200,12 @@ for episodes in range(num_episodes):
 
         if done:
             break
-        
+
     for filename in os.listdir('.plots'):
         os.remove(os.path.join('.plots', filename))
 
-    ep_reward.append(total_reward)
+    running_reward.append(total_reward)
+    ep_reward.append(sum(running_reward)/len(running_reward))
     plt.plot(range(len(ep_reward)), ep_reward)
     plt.title("Episode Rewards")
     plt.xlabel("Time")
@@ -215,3 +219,5 @@ for episodes in range(num_episodes):
     plt.ylabel("Loss") 
     plt.savefig('.plots/train_loss.png')
     plt.close() 
+
+torch.save(policy_model, "policymodel.pth")
